@@ -140,15 +140,9 @@
     </div>
 
     <script>
-        const MQTT_URL = "wss://broker.emqx.io:8084/mqtt";
-
-        const COMMAND_TOPIC = "robot/command";
-        const TELEMETRY_TOPIC = "robot/telemetry";
-        const STATUS_TOPIC = "robot/status";
-
-        let client = null;
-        let isConnected = false;
-
+        // =========================
+        // Buffers y gráficas
+        // =========================
         const N_PUNTOS = 200;
         const data_ref = Array(N_PUNTOS).fill(0);
         const data_pos = Array(N_PUNTOS).fill(0);
@@ -184,8 +178,24 @@
             Plotly.update('plot4', { y: [data_ang] });
         }
 
+        // =========================
+        // MQTT
+        // =========================
+        const MQTT_HOST = "broker.emqx.io";
+        const MQTT_PATH = "/mqtt";
+        const IS_SECURE_PAGE = window.location.protocol === "https:";
+        const MQTT_PORT = IS_SECURE_PAGE ? 8084 : 8083;
+        const MQTT_USE_SSL = IS_SECURE_PAGE;
+
+        const COMMAND_TOPIC = "robot/command";
+        const TELEMETRY_TOPIC = "robot/telemetry";
+        const STATUS_TOPIC = "robot/status";
+
+        let client = null;
+        let isConnected = false;
+
         function setStatus(text) {
-            document.getElementById('status').textContent = text;
+            document.getElementById("status").textContent = text;
         }
 
         function normalizeController(value) {
@@ -199,129 +209,153 @@
         }
 
         function connectMQTT() {
-            const clientId = "web_client_" + Math.floor(Math.random() * 100000);
-
-            client = new Paho.MQTT.Client(MQTT_URL, clientId);
-
-            client.onConnectionLost = onConnectionLost;
-            client.onMessageArrived = onMessageArrived;
-
-            setStatus("Conectando GUI al broker...");
-
-            client.connect({
-                useSSL: true,
-                timeout: 8,
-                keepAliveInterval: 20,
-                cleanSession: true,
-                reconnect: true,
-                onSuccess: () => {
-                    isConnected = true;
-
-                    client.subscribe(TELEMETRY_TOPIC);
-                    client.subscribe(STATUS_TOPIC);
-
-                    document.getElementById('connectBtn').disabled = true;
-                    document.getElementById('disconnectBtn').disabled = false;
-
-                    console.log("[GUI] Conectada a", MQTT_URL);
-                    console.log("[GUI] Suscrita a", TELEMETRY_TOPIC);
-                    console.log("[GUI] Suscrita a", STATUS_TOPIC);
-
-                    setStatus(
-                        "Estado: GUI conectada\n" +
-                        `Broker: ${MQTT_URL}\n` +
-                        `Suscrita a: ${TELEMETRY_TOPIC}\n` +
-                        `Suscrita a: ${STATUS_TOPIC}`
-                    );
-                },
-                onFailure: (err) => {
-                    console.error("[GUI] Error MQTT:", err);
-                    setStatus(`Estado: Error de conexión GUI (${err.errorMessage || err.errorCode || "sin detalle"})`);
-                }
-            });
-        }
-
-        function disconnectMQTT() {
-            if (client && isConnected) {
-                client.disconnect();
-            }
-
-            isConnected = false;
-            document.getElementById('connectBtn').disabled = false;
-            document.getElementById('disconnectBtn').disabled = true;
-            setStatus("Estado: GUI desconectada");
-        }
-
-        function onConnectionLost(responseObject) {
-            isConnected = false;
-            document.getElementById('connectBtn').disabled = false;
-            document.getElementById('disconnectBtn').disabled = true;
-
-            console.warn("[GUI] Conexión perdida:", responseObject);
-
-            if (responseObject.errorCode !== 0) {
-                setStatus(`Estado: Conexión perdida (${responseObject.errorMessage || responseObject.errorCode})`);
-            } else {
-                setStatus("Estado: GUI desconectada");
-            }
-        }
-
-        function onMessageArrived(message) {
             try {
-                console.log("[GUI] Topic:", message.destinationName, "Payload:", message.payloadString);
-
-                if (message.destinationName === STATUS_TOPIC) {
-                    setStatus(
-                        "Estado: GUI conectada\n" +
-                        `Robot status: ${message.payloadString}\n` +
-                        `Topic tel: ${TELEMETRY_TOPIC}`
-                    );
+                if (client && isConnected) {
+                    setStatus("La GUI ya está conectada.");
                     return;
                 }
 
-                if (message.destinationName === TELEMETRY_TOPIC) {
-                    const payload = message.payloadString.trim();
-                    const values = payload.split(',').map(v => parseFloat(v));
+                const clientId = ("web" + Math.random().toString(16).slice(2, 10)).slice(0, 23);
 
-                    if (values.length === 5 && values.every(v => !Number.isNaN(v))) {
-                        data_ref.shift(); data_ref.push(values[0]);
-                        data_pos.shift(); data_pos.push(values[1]);
-                        data_err.shift(); data_err.push(values[2]);
-                        data_u.shift();   data_u.push(values[3]);
-                        data_ang.shift(); data_ang.push(values[4]);
-                        updatePlots();
+                setStatus(
+                    "Intentando conectar...\n" +
+                    `Host: ${MQTT_HOST}\n` +
+                    `Puerto: ${MQTT_PORT}\n` +
+                    `Path: ${MQTT_PATH}\n` +
+                    `SSL: ${MQTT_USE_SSL}\n` +
+                    `ClientID: ${clientId}`
+                );
+
+                client = new Paho.MQTT.Client(MQTT_HOST, Number(MQTT_PORT), MQTT_PATH, clientId);
+
+                client.onConnectionLost = function(responseObject) {
+                    isConnected = false;
+                    document.getElementById("connectBtn").disabled = false;
+                    document.getElementById("disconnectBtn").disabled = true;
+
+                    console.warn("[GUI] Conexión perdida:", responseObject);
+
+                    setStatus(
+                        "Conexión perdida\n" +
+                        `Código: ${responseObject.errorCode}\n` +
+                        `Detalle: ${responseObject.errorMessage || "sin detalle"}`
+                    );
+                };
+
+                client.onMessageArrived = function(message) {
+                    console.log("[GUI] Topic:", message.destinationName, "Payload:", message.payloadString);
+
+                    if (message.destinationName === STATUS_TOPIC) {
+                        setStatus(
+                            "GUI conectada\n" +
+                            `Status robot: ${message.payloadString}\n` +
+                            `Topic tel: ${TELEMETRY_TOPIC}`
+                        );
+                        return;
                     }
-                }
+
+                    if (message.destinationName === TELEMETRY_TOPIC) {
+                        const payload = message.payloadString.trim();
+                        const values = payload.split(",").map(v => parseFloat(v));
+
+                        if (values.length === 5 && values.every(v => !Number.isNaN(v))) {
+                            data_ref.shift(); data_ref.push(values[0]);
+                            data_pos.shift(); data_pos.push(values[1]);
+                            data_err.shift(); data_err.push(values[2]);
+                            data_u.shift();   data_u.push(values[3]);
+                            data_ang.shift(); data_ang.push(values[4]);
+                            updatePlots();
+                        }
+                    }
+                };
+
+                client.connect({
+                    useSSL: MQTT_USE_SSL,
+                    timeout: 10,
+                    keepAliveInterval: 20,
+                    cleanSession: true,
+                    mqttVersion: 4,
+                    onSuccess: function() {
+                        isConnected = true;
+
+                        document.getElementById("connectBtn").disabled = true;
+                        document.getElementById("disconnectBtn").disabled = false;
+
+                        client.subscribe(TELEMETRY_TOPIC, {
+                            onSuccess: () => console.log("[GUI] Suscripción OK:", TELEMETRY_TOPIC),
+                            onFailure: err => console.error("[GUI] Error suscripción telemetry:", err)
+                        });
+
+                        client.subscribe(STATUS_TOPIC, {
+                            onSuccess: () => console.log("[GUI] Suscripción OK:", STATUS_TOPIC),
+                            onFailure: err => console.error("[GUI] Error suscripción status:", err)
+                        });
+
+                        setStatus(
+                            "GUI conectada correctamente\n" +
+                            `Broker: ${MQTT_HOST}:${MQTT_PORT}${MQTT_PATH}\n` +
+                            `Topic tel: ${TELEMETRY_TOPIC}\n` +
+                            `Topic status: ${STATUS_TOPIC}`
+                        );
+                    },
+                    onFailure: function(err) {
+                        console.error("[GUI] Error al conectar:", err);
+                        setStatus(
+                            "Error al conectar GUI\n" +
+                            `Código: ${err.errorCode || "sin código"}\n` +
+                            `Detalle: ${err.errorMessage || JSON.stringify(err)}`
+                        );
+                    }
+                });
             } catch (e) {
-                console.error("Error procesando mensaje MQTT:", e);
+                console.error("[GUI] Excepción JS:", e);
+                setStatus("Excepción JS al crear/conectar cliente:\n" + e.message);
             }
         }
 
-        function sendCommand(modo) {
-            if (!isConnected || !client) {
-                alert("Primero conecta la GUI al broker MQTT");
-                return;
+        function disconnectMQTT() {
+            try {
+                if (client && isConnected) {
+                    client.disconnect();
+                }
+            } catch (e) {
+                console.error("[GUI] Error al desconectar:", e);
             }
 
-            const amplitud = parseFloat(document.getElementById('amplitude').value);
-            const periodo = parseInt(document.getElementById('period').value, 10);
-            const controller = normalizeController(document.getElementById('controller').value);
+            isConnected = false;
+            document.getElementById("connectBtn").disabled = false;
+            document.getElementById("disconnectBtn").disabled = true;
+            setStatus("GUI desconectada");
+        }
 
-            const comando = `${modo},${amplitud},${periodo},${controller}`;
+        function sendCommand(modo) {
+            try {
+                if (!client || !isConnected) {
+                    alert("Primero conecta la GUI al broker MQTT");
+                    return;
+                }
 
-            const msg = new Paho.MQTT.Message(comando);
-            msg.destinationName = COMMAND_TOPIC;
-            client.send(msg);
+                const amplitud = parseFloat(document.getElementById("amplitude").value);
+                const periodo = parseInt(document.getElementById("period").value, 10);
+                const controller = normalizeController(document.getElementById("controller").value);
 
-            console.log("[GUI] Comando enviado:", comando, "->", COMMAND_TOPIC);
+                const comando = `${modo},${amplitud},${periodo},${controller}`;
 
-            setStatus(
-                "Estado: GUI conectada\n" +
-                `Último comando: ${comando}\n` +
-                `Topic cmd: ${COMMAND_TOPIC}\n` +
-                `Topic tel: ${TELEMETRY_TOPIC}\n` +
-                `Topic status: ${STATUS_TOPIC}`
-            );
+                const msg = new Paho.MQTT.Message(comando);
+                msg.destinationName = COMMAND_TOPIC;
+                client.send(msg);
+
+                console.log("[GUI] Comando enviado:", comando);
+
+                setStatus(
+                    "GUI conectada\n" +
+                    `Último comando: ${comando}\n` +
+                    `Topic cmd: ${COMMAND_TOPIC}`
+                );
+            } catch (e) {
+                console.error("[GUI] Error enviando comando:", e);
+                setStatus("Error enviando comando:\n" + e.message);
+            }
         }
 
         window.onload = () => {
