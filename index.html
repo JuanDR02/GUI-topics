@@ -4,8 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Control IoT - Grúa Pluma / Péndulo</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.4/mqttws31.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js" type="text/javascript"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -140,9 +142,6 @@
     </div>
 
     <script>
-        // =========================
-        // Buffers y gráficas
-        // =========================
         const N_PUNTOS = 200;
         const data_ref = Array(N_PUNTOS).fill(0);
         const data_pos = Array(N_PUNTOS).fill(0);
@@ -178,9 +177,6 @@
             Plotly.update('plot4', { y: [data_ang] });
         }
 
-        // =========================
-        // MQTT
-        // =========================
         const MQTT_HOST = "broker.emqx.io";
         const MQTT_PATH = "/mqtt";
         const IS_SECURE_PAGE = window.location.protocol === "https:";
@@ -210,6 +206,12 @@
 
         function connectMQTT() {
             try {
+                if (typeof Paho === "undefined") {
+                    setStatus("Error: la librería Paho no cargó.");
+                    console.error("Paho no está disponible en window.");
+                    return;
+                }
+
                 if (client && isConnected) {
                     setStatus("La GUI ya está conectada.");
                     return;
@@ -226,7 +228,7 @@
                     `ClientID: ${clientId}`
                 );
 
-                client = new Paho.MQTT.Client(MQTT_HOST, Number(MQTT_PORT), MQTT_PATH, clientId);
+                client = new Paho.Client(MQTT_HOST, Number(MQTT_PORT), MQTT_PATH, clientId);
 
                 client.onConnectionLost = function(responseObject) {
                     isConnected = false;
@@ -281,15 +283,8 @@
                         document.getElementById("connectBtn").disabled = true;
                         document.getElementById("disconnectBtn").disabled = false;
 
-                        client.subscribe(TELEMETRY_TOPIC, {
-                            onSuccess: () => console.log("[GUI] Suscripción OK:", TELEMETRY_TOPIC),
-                            onFailure: err => console.error("[GUI] Error suscripción telemetry:", err)
-                        });
-
-                        client.subscribe(STATUS_TOPIC, {
-                            onSuccess: () => console.log("[GUI] Suscripción OK:", STATUS_TOPIC),
-                            onFailure: err => console.error("[GUI] Error suscripción status:", err)
-                        });
+                        client.subscribe(TELEMETRY_TOPIC);
+                        client.subscribe(STATUS_TOPIC);
 
                         setStatus(
                             "GUI conectada correctamente\n" +
@@ -341,7 +336,7 @@
 
                 const comando = `${modo},${amplitud},${periodo},${controller}`;
 
-                const msg = new Paho.MQTT.Message(comando);
+                const msg = new Paho.Message(comando);
                 msg.destinationName = COMMAND_TOPIC;
                 client.send(msg);
 
