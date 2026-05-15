@@ -4,359 +4,258 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Control IoT - Grúa Pluma / Péndulo</title>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js" type="text/javascript"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .controls {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-bottom: 20px;
-            align-items: center;
-        }
-
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        label {
-            font-weight: bold;
-            font-size: 14px;
-        }
-
-        button, input, select {
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        button {
-            background: #007bff;
-            color: white;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        button:hover {
-            background: #0056b3;
-        }
-
-        button.secondary {
-            background: #6c757d;
-        }
-
-        button.secondary:hover {
-            background: #545b62;
-        }
-
-        .plots {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-        }
-
-        .plot {
-            height: 250px;
-        }
-
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .controls { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; align-items: center; }
+        .control-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-weight: bold; font-size: 14px; }
+        button, input, select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        button { background: #007bff; color: white; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #0056b3; }
+        button.secondary { background: #6c757d; }
+        button.secondary:hover { background: #545b62; }
+        .plots { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .plot { height: 250px; }
         .status {
-            padding: 10px;
-            background: #e9ecef;
-            border-radius: 4px;
-            margin: 10px 0;
-            font-family: monospace;
-            white-space: pre-line;
+            padding: 10px; background: #e9ecef; border-radius: 4px;
+            margin: 10px 0; font-family: monospace; white-space: pre-line;
+            border-left: 4px solid #007bff;
         }
+        .status.ok   { border-left-color: #28a745; }
+        .status.err  { border-left-color: #dc3545; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Control IoT - Grúa Pluma / Péndulo Invertido</h1>
+<div class="container">
+    <h1>Control IoT - Grúa Pluma / Péndulo Invertido</h1>
 
-        <div class="controls">
-            <div class="control-group">
-                <label>Señal de referencia:</label>
-                <div>
-                    <button onclick="sendCommand(1)">1. Step</button>
-                    <button onclick="sendCommand(2)">2. Pulsos</button>
-                    <button onclick="sendCommand(3)">3. Senoidal</button>
-                    <button onclick="sendCommand(4)">4. Rampa</button>
-                </div>
-            </div>
-
-            <div class="control-group">
-                <label>Amplitud:</label>
-                <input type="number" id="amplitude" value="10.0" step="0.1">
-            </div>
-
-            <div class="control-group">
-                <label>Periodo (ms):</label>
-                <input type="number" id="period" value="4000" step="100">
-            </div>
-
-            <div class="control-group">
-                <label>Controlador:</label>
-                <select id="controller">
-                    <option value="PID">PID</option>
-                    <option value="LGR">LGR</option>
-                    <option value="DB">Osc. Muertas</option>
-                    <option value="SERVO">Servo</option>
-                </select>
-            </div>
-
-            <div class="control-group">
-                <button onclick="connectMQTT()" id="connectBtn">Conectar MQTT</button>
-                <button onclick="disconnectMQTT()" id="disconnectBtn" class="secondary" disabled>Desconectar</button>
+    <div class="controls">
+        <div class="control-group">
+            <label>Señal de referencia:</label>
+            <div>
+                <button onclick="sendCommand(1)">1. Step</button>
+                <button onclick="sendCommand(2)">2. Pulsos</button>
+                <button onclick="sendCommand(3)">3. Senoidal</button>
+                <button onclick="sendCommand(4)">4. Rampa</button>
             </div>
         </div>
-
-        <div class="status" id="status">Estado: Desconectado</div>
-
-        <div class="plots">
-            <div id="plot1" class="plot"></div>
-            <div id="plot2" class="plot"></div>
-            <div id="plot3" class="plot"></div>
-            <div id="plot4" class="plot"></div>
+        <div class="control-group">
+            <label>Amplitud:</label>
+            <input type="number" id="amplitude" value="10.0" step="0.1">
+        </div>
+        <div class="control-group">
+            <label>Periodo (ms):</label>
+            <input type="number" id="period" value="4000" step="100">
+        </div>
+        <div class="control-group">
+            <label>Controlador:</label>
+            <select id="controller">
+                <option value="PID">PID</option>
+                <option value="LGR">LGR</option>
+                <option value="DB">Osc. Muertas</option>
+                <option value="SERVO">Servo</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <button onclick="connectMQTT()" id="connectBtn">Conectar MQTT</button>
+            <button onclick="disconnectMQTT()" id="disconnectBtn" class="secondary" disabled>Desconectar</button>
         </div>
     </div>
 
-    <script>
-        const N_PUNTOS = 200;
-        const data_ref = Array(N_PUNTOS).fill(0);
-        const data_pos = Array(N_PUNTOS).fill(0);
-        const data_err = Array(N_PUNTOS).fill(0);
-        const data_u   = Array(N_PUNTOS).fill(0);
-        const data_ang = Array(N_PUNTOS).fill(0);
+    <div class="status" id="status">Estado: Desconectado — haz clic en "Conectar MQTT"</div>
 
-        function initPlots() {
-            const layout = { margin: { t: 30, r: 10, b: 40, l: 50 } };
+    <div class="plots">
+        <div id="plot1" class="plot"></div>
+        <div id="plot2" class="plot"></div>
+        <div id="plot3" class="plot"></div>
+        <div id="plot4" class="plot"></div>
+    </div>
+</div>
 
-            Plotly.newPlot('plot1', [
-                { y: data_ref, type: 'scatter', mode: 'lines', name: 'Referencia', line: { color: 'black', dash: 'dash' } },
-                { y: data_pos, type: 'scatter', mode: 'lines', name: 'Salida', line: { color: 'blue' } }
-            ], { title: 'Respuesta de Posición', yaxis: { title: 'Posición' }, ...layout }, { responsive: true });
+<script>
+// ── Buffers ──────────────────────────────────────────
+const N = 200;
+const data_ref = Array(N).fill(0);
+const data_pos = Array(N).fill(0);
+const data_err = Array(N).fill(0);
+const data_u   = Array(N).fill(0);
+const data_ang = Array(N).fill(0);
 
-            Plotly.newPlot('plot2', [
-                { y: data_err, type: 'scatter', mode: 'lines', name: 'Error', line: { color: 'red' } }
-            ], { title: 'Error de Posición', yaxis: { title: 'Error' }, ...layout }, { responsive: true });
+// ── Gráficas ─────────────────────────────────────────
+function initPlots() {
+    const layout = { margin: { t: 30, r: 10, b: 40, l: 50 } };
+    Plotly.newPlot('plot1', [
+        { y: data_ref, type: 'scattergl', mode: 'lines', name: 'Referencia', line: { color: 'black', dash: 'dash' } },
+        { y: data_pos, type: 'scattergl', mode: 'lines', name: 'Salida',     line: { color: 'blue' } }
+    ], { title: 'Respuesta de Posición', yaxis: { title: 'Posición' }, ...layout }, { responsive: true });
 
-            Plotly.newPlot('plot3', [
-                { y: data_u, type: 'scatter', mode: 'lines', name: 'Esfuerzo', line: { color: 'green' } }
-            ], { title: 'Esfuerzo de Control', yaxis: { title: 'Voltaje (V)', range: [-13, 13] }, ...layout }, { responsive: true });
+    Plotly.newPlot('plot2', [
+        { y: data_err, type: 'scattergl', mode: 'lines', name: 'Error', line: { color: 'red' } }
+    ], { title: 'Error de Posición', yaxis: { title: 'Error' }, ...layout }, { responsive: true });
 
-            Plotly.newPlot('plot4', [
-                { y: data_ang, type: 'scatter', mode: 'lines', name: 'Ángulo', line: { color: 'magenta' } }
-            ], { title: 'Ángulo del Péndulo (Filtrado)', yaxis: { title: 'Grados' }, xaxis: { title: 'Muestras' }, ...layout }, { responsive: true });
+    Plotly.newPlot('plot3', [
+        { y: data_u, type: 'scattergl', mode: 'lines', name: 'Esfuerzo', line: { color: 'green' } }
+    ], { title: 'Esfuerzo de Control', yaxis: { title: 'Voltaje (V)', range: [-13, 13] }, ...layout }, { responsive: true });
+
+    Plotly.newPlot('plot4', [
+        { y: data_ang, type: 'scattergl', mode: 'lines', name: 'Ángulo', line: { color: 'magenta' } }
+    ], { title: 'Ángulo del Péndulo (Filtrado)', yaxis: { title: 'Grados' }, xaxis: { title: 'Muestras' }, ...layout }, { responsive: true });
+}
+
+// Refresca a 10 Hz, no en cada mensaje MQTT
+let latestSample = null;
+
+setInterval(() => {
+    if (!latestSample) return;
+    const v = latestSample;
+    latestSample = null;
+
+    data_ref.shift(); data_ref.push(v[0]);
+    data_pos.shift(); data_pos.push(v[1]);
+    data_err.shift(); data_err.push(v[2]);
+    data_u.shift();   data_u.push(v[3]);
+    data_ang.shift(); data_ang.push(v[4]);
+
+    Plotly.update('plot1', { y: [data_ref, data_pos] });
+    Plotly.update('plot2', { y: [data_err] });
+    Plotly.update('plot3', { y: [data_u] });
+    Plotly.update('plot4', { y: [data_ang] });
+}, 100);
+
+// ── MQTT ─────────────────────────────────────────────
+const MQTT_HOST      = "broker.emqx.io";
+const MQTT_PATH      = "/mqtt";
+const IS_HTTPS       = window.location.protocol === "https:";
+const MQTT_PORT      = IS_HTTPS ? 8084 : 8083;
+const MQTT_USE_SSL   = IS_HTTPS;
+
+const TOPIC_CMD = "robot/command";
+const TOPIC_TEL = "robot/telemetry";
+const TOPIC_STS = "robot/status";
+
+let client      = null;
+let isConnected = false;
+
+function setStatus(text, tipo) {
+    const el = document.getElementById("status");
+    el.textContent = text;
+    el.className = "status " + (tipo || "");
+}
+
+function normalizeCtrl(v) {
+    v = String(v).trim().toUpperCase();
+    if (v === "OS" || v === "DEADBEAT") return "DB";
+    if (v === "SERVO") return "SERVO";
+    if (v === "PID")   return "PID";
+    if (v === "LGR")   return "LGR";
+    if (v === "DB")    return "DB";
+    return "LGR";
+}
+
+function connectMQTT() {
+    if (typeof Paho === "undefined") {
+        setStatus("Error: Paho no cargó. Revisa tu conexión a internet.", "err");
+        return;
+    }
+    if (isConnected) { setStatus("Ya está conectado.", "ok"); return; }
+
+    const clientId = ("web" + Math.random().toString(16).slice(2, 10)).slice(0, 23);
+
+    setStatus(
+        "Conectando...\n" +
+        "Host: " + MQTT_HOST + "\n" +
+        "Puerto: " + MQTT_PORT + "  SSL: " + MQTT_USE_SSL + "\n" +
+        "ClientID: " + clientId
+    );
+
+    client = new Paho.Client(MQTT_HOST, Number(MQTT_PORT), MQTT_PATH, clientId);
+
+    client.onConnectionLost = function(r) {
+        isConnected = false;
+        document.getElementById("connectBtn").disabled   = false;
+        document.getElementById("disconnectBtn").disabled = true;
+        setStatus("Conexión perdida\nCódigo: " + r.errorCode + "\n" + (r.errorMessage || ""), "err");
+        console.warn("[MQTT] Conexión perdida:", r);
+    };
+
+    client.onMessageArrived = function(msg) {
+        console.log("[MQTT] <<", msg.destinationName, "→", msg.payloadString);
+
+        if (msg.destinationName === TOPIC_STS) {
+            setStatus("Broker OK  |  Robot: " + msg.payloadString, "ok");
+            return;
         }
 
-        function updatePlots() {
-            Plotly.update('plot1', { y: [data_ref, data_pos] });
-            Plotly.update('plot2', { y: [data_err] });
-            Plotly.update('plot3', { y: [data_u] });
-            Plotly.update('plot4', { y: [data_ang] });
-        }
-
-        const MQTT_HOST = "broker.emqx.io";
-        const MQTT_PATH = "/mqtt";
-        const IS_SECURE_PAGE = window.location.protocol === "https:";
-        const MQTT_PORT = IS_SECURE_PAGE ? 8084 : 8083;
-        const MQTT_USE_SSL = IS_SECURE_PAGE;
-
-        const COMMAND_TOPIC = "robot/command";
-        const TELEMETRY_TOPIC = "robot/telemetry";
-        const STATUS_TOPIC = "robot/status";
-
-        let client = null;
-        let isConnected = false;
-
-        function setStatus(text) {
-            document.getElementById("status").textContent = text;
-        }
-
-        function normalizeController(value) {
-            const v = String(value).trim().toUpperCase();
-            if (v === "OS") return "DB";
-            if (v === "SERVO") return "SERVO";
-            if (v === "PID") return "PID";
-            if (v === "LGR") return "LGR";
-            if (v === "DB" || v === "DEADBEAT") return "DB";
-            return "LGR";
-        }
-
-        function connectMQTT() {
-            try {
-                if (typeof Paho === "undefined") {
-                    setStatus("Error: la librería Paho no cargó.");
-                    console.error("Paho no está disponible en window.");
-                    return;
-                }
-
-                if (client && isConnected) {
-                    setStatus("La GUI ya está conectada.");
-                    return;
-                }
-
-                const clientId = ("web" + Math.random().toString(16).slice(2, 10)).slice(0, 23);
-
-                setStatus(
-                    "Intentando conectar...\n" +
-                    `Host: ${MQTT_HOST}\n` +
-                    `Puerto: ${MQTT_PORT}\n` +
-                    `Path: ${MQTT_PATH}\n` +
-                    `SSL: ${MQTT_USE_SSL}\n` +
-                    `ClientID: ${clientId}`
-                );
-
-                client = new Paho.Client(MQTT_HOST, Number(MQTT_PORT), MQTT_PATH, clientId);
-
-                client.onConnectionLost = function(responseObject) {
-                    isConnected = false;
-                    document.getElementById("connectBtn").disabled = false;
-                    document.getElementById("disconnectBtn").disabled = true;
-
-                    console.warn("[GUI] Conexión perdida:", responseObject);
-
-                    setStatus(
-                        "Conexión perdida\n" +
-                        `Código: ${responseObject.errorCode}\n` +
-                        `Detalle: ${responseObject.errorMessage || "sin detalle"}`
-                    );
-                };
-
-                client.onMessageArrived = function(message) {
-                    console.log("[GUI] Topic:", message.destinationName, "Payload:", message.payloadString);
-
-                    if (message.destinationName === STATUS_TOPIC) {
-                        setStatus(
-                            "GUI conectada\n" +
-                            `Status robot: ${message.payloadString}\n` +
-                            `Topic tel: ${TELEMETRY_TOPIC}`
-                        );
-                        return;
-                    }
-
-                    if (message.destinationName === TELEMETRY_TOPIC) {
-                        const payload = message.payloadString.trim();
-                        const values = payload.split(",").map(v => parseFloat(v));
-
-                        if (values.length === 5 && values.every(v => !Number.isNaN(v))) {
-                            data_ref.shift(); data_ref.push(values[0]);
-                            data_pos.shift(); data_pos.push(values[1]);
-                            data_err.shift(); data_err.push(values[2]);
-                            data_u.shift();   data_u.push(values[3]);
-                            data_ang.shift(); data_ang.push(values[4]);
-                            updatePlots();
-                        }
-                    }
-                };
-
-                client.connect({
-                    useSSL: MQTT_USE_SSL,
-                    timeout: 10,
-                    keepAliveInterval: 20,
-                    cleanSession: true,
-                    mqttVersion: 4,
-                    onSuccess: function() {
-                        isConnected = true;
-
-                        document.getElementById("connectBtn").disabled = true;
-                        document.getElementById("disconnectBtn").disabled = false;
-
-                        client.subscribe(TELEMETRY_TOPIC);
-                        client.subscribe(STATUS_TOPIC);
-
-                        setStatus(
-                            "GUI conectada correctamente\n" +
-                            `Broker: ${MQTT_HOST}:${MQTT_PORT}${MQTT_PATH}\n` +
-                            `Topic tel: ${TELEMETRY_TOPIC}\n` +
-                            `Topic status: ${STATUS_TOPIC}`
-                        );
-                    },
-                    onFailure: function(err) {
-                        console.error("[GUI] Error al conectar:", err);
-                        setStatus(
-                            "Error al conectar GUI\n" +
-                            `Código: ${err.errorCode || "sin código"}\n` +
-                            `Detalle: ${err.errorMessage || JSON.stringify(err)}`
-                        );
-                    }
-                });
-            } catch (e) {
-                console.error("[GUI] Excepción JS:", e);
-                setStatus("Excepción JS al crear/conectar cliente:\n" + e.message);
+        if (msg.destinationName === TOPIC_TEL) {
+            const vals = msg.payloadString.trim().split(",").map(Number);
+            if (vals.length === 5 && vals.every(v => !isNaN(v))) {
+                latestSample = vals;   // el setInterval lo dibuja
+            } else {
+                console.warn("[MQTT] Telemetría malformada:", msg.payloadString);
             }
         }
+    };
 
-        function disconnectMQTT() {
-            try {
-                if (client && isConnected) {
-                    client.disconnect();
-                }
-            } catch (e) {
-                console.error("[GUI] Error al desconectar:", e);
-            }
+    client.connect({
+        useSSL: MQTT_USE_SSL,
+        timeout: 10,
+        keepAliveInterval: 20,
+        cleanSession: true,
+        mqttVersion: 4,
+        onSuccess: function() {
+            isConnected = true;
+            document.getElementById("connectBtn").disabled   = true;
+            document.getElementById("disconnectBtn").disabled = false;
 
-            isConnected = false;
-            document.getElementById("connectBtn").disabled = false;
-            document.getElementById("disconnectBtn").disabled = true;
-            setStatus("GUI desconectada");
+            client.subscribe(TOPIC_TEL);
+            client.subscribe(TOPIC_STS);
+
+            setStatus(
+                "Conectado al broker\n" +
+                "Suscrito a: " + TOPIC_TEL + "\n" +
+                "Suscrito a: " + TOPIC_STS,
+                "ok"
+            );
+            console.log("[MQTT] Conectado. Topics:", TOPIC_TEL, TOPIC_STS);
+        },
+        onFailure: function(err) {
+            setStatus(
+                "Error de conexión\nCódigo: " + (err.errorCode || "?") + "\n" + (err.errorMessage || JSON.stringify(err)),
+                "err"
+            );
+            console.error("[MQTT] onFailure:", err);
         }
+    });
+}
 
-        function sendCommand(modo) {
-            try {
-                if (!client || !isConnected) {
-                    alert("Primero conecta la GUI al broker MQTT");
-                    return;
-                }
+function disconnectMQTT() {
+    try { if (client && isConnected) client.disconnect(); } catch(e) {}
+    isConnected = false;
+    document.getElementById("connectBtn").disabled   = false;
+    document.getElementById("disconnectBtn").disabled = true;
+    setStatus("Desconectado.");
+}
 
-                const amplitud = parseFloat(document.getElementById("amplitude").value);
-                const periodo = parseInt(document.getElementById("period").value, 10);
-                const controller = normalizeController(document.getElementById("controller").value);
+function sendCommand(modo) {
+    if (!isConnected) { alert("Primero conecta al broker MQTT"); return; }
 
-                const comando = `${modo},${amplitud},${periodo},${controller}`;
+    const amp  = parseFloat(document.getElementById("amplitude").value);
+    const per  = parseInt(document.getElementById("period").value, 10);
+    const ctrl = normalizeCtrl(document.getElementById("controller").value);
+    const cmd  = modo + "," + amp + "," + per + "," + ctrl;
 
-                const msg = new Paho.Message(comando);
-                msg.destinationName = COMMAND_TOPIC;
-                client.send(msg);
+    const msg = new Paho.Message(cmd);
+    msg.destinationName = TOPIC_CMD;
+    client.send(msg);
 
-                console.log("[GUI] Comando enviado:", comando);
+    setStatus("Conectado  |  Último comando → " + cmd, "ok");
+    console.log("[MQTT] >> " + TOPIC_CMD + " →", cmd);
+}
 
-                setStatus(
-                    "GUI conectada\n" +
-                    `Último comando: ${comando}\n` +
-                    `Topic cmd: ${COMMAND_TOPIC}`
-                );
-            } catch (e) {
-                console.error("[GUI] Error enviando comando:", e);
-                setStatus("Error enviando comando:\n" + e.message);
-            }
-        }
-
-        window.onload = () => {
-            initPlots();
-            setStatus("Estado: Desconectado - Haz clic en 'Conectar MQTT'");
-        };
-    </script>
+window.onload = () => { initPlots(); };
+</script>
 </body>
 </html>
